@@ -65,16 +65,14 @@ func editorData(ctx *gin.Context) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	rows, err := database.Query("select id, content, theme, `language` from userdata where id=?", request.Workspace)
+	row := database.QueryRow("select id, content, theme, `language` from userdata where id=?", request.Workspace)
+	err = row.Scan(&data.Workspace, &data.Content, &data.Theme, &data.Language)
 	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	err = rows.Scan(&data.Workspace, &data.Content, &data.Theme, &data.Language)
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
-	err = rows.Close()
-	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "该工作区不存在"})
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
 		log.Fatalln(err.Error())
 	}
 	ctx.JSON(http.StatusOK, gin.H{"result": 0, "data": data})
@@ -86,7 +84,22 @@ func upload(ctx *gin.Context) {
 	if err != nil {
 		log.Println(err)
 	}
-	_, err = database.Exec("update userdata set content=?, theme=?, `language`=? where id=?", data.Content, data.Theme, data.Language, data.Workspace)
+	if len(data.Content) > 65535 {
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "内容过长"})
+		return
+	}
+	result, err := database.Exec("update userdata set content=?, theme=?, `language`=? where id=?", data.Content, data.Theme, data.Language, data.Workspace)
+	if result != nil {
+		row, err := result.RowsAffected()
+		if err != nil {
+			log.Fatalln(err.Error())
+		}
+		if row == 0 {
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "未能保存"})
+			return
+		}
+	}
+	log.Println(data.Workspace)
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
