@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"github.com/gin-gonic/gin"
+	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"math/rand"
@@ -43,17 +44,25 @@ func main() {
 	}
 	err := router.Run(":9527")
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Println(err.Error())
 	}
 	closeDatabase(database)
 }
 
 func create(ctx *gin.Context) {
 	var workspace int
-	workspace = rand.Intn(900000) + 100000
-	_, err := database.Exec("insert userdata (id) values (?)", workspace)
-	if err != nil {
-		log.Fatalln(err.Error())
+	for true {
+		workspace = rand.Intn(900000) + 100000
+		_, err := database.Exec("insert userdata (id) values (?)", workspace)
+		if err != nil && err.(*mysql.MySQLError).Number == 1062 {
+			continue
+		}
+		if err != nil {
+			log.Println(err.Error())
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
+			return
+		}
+		break
 	}
 	ctx.JSON(http.StatusOK, gin.H{"result": 0, "workspace": workspace})
 }
@@ -63,7 +72,9 @@ func editorData(ctx *gin.Context) {
 	var request RequestData
 	err := ctx.Bind(&request)
 	if err != nil {
-		log.Fatalln(err)
+		log.Println(err.Error())
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
+		return
 	}
 	row := database.QueryRow("select id, content, theme, `language` from userdata where id=?", request.Workspace)
 	err = row.Scan(&data.Workspace, &data.Content, &data.Theme, &data.Language)
@@ -73,7 +84,8 @@ func editorData(ctx *gin.Context) {
 			return
 		}
 		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
-		log.Fatalln(err.Error())
+		log.Println(err.Error())
+		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"result": 0, "data": data})
 }
@@ -82,26 +94,19 @@ func upload(ctx *gin.Context) {
 	var data EditorData
 	err := ctx.Bind(&data)
 	if err != nil {
-		log.Println(err)
+		log.Println(err.Error())
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
+		return
 	}
 	if len(data.Content) > 65535 {
 		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "内容过长"})
 		return
 	}
-	result, err := database.Exec("update userdata set content=?, theme=?, `language`=? where id=?", data.Content, data.Theme, data.Language, data.Workspace)
-	if result != nil {
-		row, err := result.RowsAffected()
-		if err != nil {
-			log.Fatalln(err.Error())
-		}
-		if row == 0 {
-			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "未能保存"})
-			return
-		}
-	}
-	log.Println(data.Workspace)
+	_, err = database.Exec("update userdata set content=?, theme=?, `language`=? where id=?", data.Content, data.Theme, data.Language, data.Workspace)
 	if err != nil {
-		log.Fatalln(err.Error())
+		log.Println(err.Error())
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
+		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"result": 0})
 }
