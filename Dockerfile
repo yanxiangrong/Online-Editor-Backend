@@ -1,7 +1,10 @@
 FROM golang:latest
 
-WORKDIR .
+WORKDIR $GOPATH/src/onilne-editor-backend
+COPY . $GOPATH/src/onilne-editor-backend
+RUN go env -w GOPROXY=https://goproxy.cn
 RUN go build .
 
 EXPOSE 9527
-ENTRYPOINT ["./mian"]
+ENV GIN_MODE release
+ENTRYPOINT ["./online-editor-backend"]

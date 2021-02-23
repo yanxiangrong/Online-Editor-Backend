@@ -33,6 +33,9 @@ func main() {
 	v1 := router.Group("v1")
 	{
 		v1.POST("create", create)
+		v1.GET("test", func(context *gin.Context) {
+			context.String(http.StatusOK, "Test")
+		})
 		v1.POST("workspace", editorData)
 		v1.OPTIONS("workspace", func(context *gin.Context) {
 			context.Status(http.StatusOK)
