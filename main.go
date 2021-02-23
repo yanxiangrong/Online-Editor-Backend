@@ -115,7 +115,8 @@ func upload(ctx *gin.Context) {
 }
 
 func openDatabase() *sql.DB {
-	var db, err = sql.Open("mysql", "root:passwd@tcp(127.0.0.1:3306)/mytest?charset=utf8")
+	//var db, err = sql.Open("mysql", "root:passwd@tcp(127.0.0.1:3306)/mytest?charset=utf8")
+	var db, err = sql.Open("mysql", "OnlineEditor:cdkdeNPXwemAGiTF@tcp(127.0.0.1:3306)/OnlineEditor?charset=utf8")
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
