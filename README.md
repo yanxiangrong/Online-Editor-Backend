@@ -1,6 +1,6 @@
 安装 Docker  
 `yum install docker`  
-开启 Docker
+开启 Docker  
 `sudo systemctl start docker`  
 构建镜像  
 `sudo docker build -t online-editor-backend .`  
