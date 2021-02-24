@@ -1,17 +1,23 @@
 package main
 
 import (
+	"context"
 	"database/sql"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
 	"log"
 	"math/rand"
 	"net/http"
+	"os"
+	"os/exec"
+	"strings"
 	"time"
 )
 
 var database *sql.DB
+var isRunningCode = false
 
 type EditorData struct {
 	Workspace int    `json:"workspace" db:"id"`
@@ -22,6 +28,11 @@ type EditorData struct {
 
 type RequestData struct {
 	Workspace int `json:"workspace" db:"id"`
+}
+
+type RequestRunData struct {
+	Workspace   int    `json:"workspace" db:"id"`
+	InputString string `json:"input_string" db:"input_string"`
 }
 
 func main() {
@@ -42,6 +53,10 @@ func main() {
 		})
 		v1.POST("upload", upload)
 		v1.OPTIONS("upload", func(context *gin.Context) {
+			context.Status(http.StatusOK)
+		})
+		v1.POST("run", editorRun)
+		v1.OPTIONS("run", func(context *gin.Context) {
 			context.Status(http.StatusOK)
 		})
 	}
@@ -114,9 +129,59 @@ func upload(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"result": 0})
 }
 
+func editorRun(ctx *gin.Context) {
+	var data EditorData
+	var request RequestRunData
+	err := ctx.Bind(&request)
+	if err != nil {
+		log.Println(err.Error())
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
+		return
+	}
+	row := database.QueryRow("select id, content, theme, `language` from userdata where id=?", request.Workspace)
+	err = row.Scan(&data.Workspace, &data.Content, &data.Theme, &data.Language)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "该工作区不存在"})
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
+		log.Println(err.Error())
+		return
+	}
+
+	if isRunningCode {
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "当前已有代码在运行"})
+		return
+	} else {
+		isRunningCode = true
+	}
+	defer func() { isRunningCode = false }()
+
+	switch data.Language {
+	case "c":
+		result, duration, err := runCodeC(data.Content, request.InputString)
+		if err != nil {
+			log.Println(err.Error())
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error(), "duration": duration})
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"result": 0, "output": result, "duration": duration})
+	case "cpp":
+		result, duration, err := runCodeCpp(data.Content, request.InputString)
+		if err != nil {
+			log.Println(err.Error())
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error(), "duration": duration})
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"result": 0, "output": result, "duration": duration})
+	default:
+		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "目前还不支持运行该语言"})
+	}
+}
+
 func openDatabase() *sql.DB {
-	//var db, err = sql.Open("mysql", "root:passwd@tcp(127.0.0.1:3306)/mytest?charset=utf8")
-	var db, err = sql.Open("mysql", "OnlineEditor:cdkdeNPXwemAGiTF@tcp(127.0.0.1:3306)/OnlineEditor?charset=utf8")
+	var db, err = sql.Open("mysql", "root:passwd@tcp(127.0.0.1:3306)/mytest?charset=utf8")
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -128,4 +193,126 @@ func closeDatabase(database *sql.DB) {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
+}
+
+func runCodeC(code string, input string) (string, int, error) {
+	var retString string
+	file, err := os.Create("./a.c")
+	if err != nil {
+		return "", 0, err
+	}
+	_, err = file.WriteString(code)
+	if err != nil {
+		return "", 0, err
+	}
+	err = file.Close()
+	if err != nil {
+		return "", 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gcc", "./a.c", "-o", "./a.exe")
+	stdoutStderr, err := cmd.CombinedOutput()
+	if err != nil {
+		retString += "编译错误\n"
+		retString += "--------------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "--------------------\n"
+		retString += err.Error() + "\n"
+		err = os.Remove("./a.c")
+		if err != nil {
+			log.Println(err.Error())
+			return retString, 0, err
+		}
+		return retString, 0, nil
+	}
+
+	err = os.Remove("./a.c")
+	if err != nil {
+		log.Println(err.Error())
+		return "", 0, err
+	}
+
+	cmd = exec.CommandContext(ctx, "./a.exe")
+	cmd.Stdin = strings.NewReader(input)
+	time1 := time.Now()
+	stdoutStderr, err = cmd.CombinedOutput()
+	duration := time.Since(time1)
+	if err != nil {
+		retString += "运行错误\n"
+		retString += "----------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "----------------\n"
+		retString += err.Error() + "\n"
+		return retString, int(duration.Milliseconds()), nil
+	}
+	err = os.Remove("./a.exe")
+	if err != nil {
+		log.Println(err.Error())
+		return retString, int(duration.Milliseconds()), err
+	}
+	retString += fmt.Sprintf("%s\n", stdoutStderr)
+	return retString, int(duration.Milliseconds()), nil
+}
+
+func runCodeCpp(code string, input string) (string, int, error) {
+	var retString string
+	file, err := os.Create("./a.cpp")
+	if err != nil {
+		return "", 0, err
+	}
+	_, err = file.WriteString(code)
+	if err != nil {
+		return "", 0, err
+	}
+	err = file.Close()
+	if err != nil {
+		return "", 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "g++", "./a.cpp", "-o", "./a.exe")
+	stdoutStderr, err := cmd.CombinedOutput()
+	if err != nil {
+		retString += "编译错误\n"
+		retString += "----------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "----------------\n"
+		retString += err.Error() + "\n"
+		err = os.Remove("./a.cpp")
+		if err != nil {
+			log.Println(err.Error())
+			return retString, 0, err
+		}
+		return retString, 0, nil
+	}
+
+	err = os.Remove("./a.cpp")
+	if err != nil {
+		log.Println(err.Error())
+		return "", 0, err
+	}
+
+	cmd = exec.CommandContext(ctx, "./a.exe")
+	cmd.Stdin = strings.NewReader(input)
+	time1 := time.Now()
+	stdoutStderr, err = cmd.CombinedOutput()
+	duration := time.Since(time1)
+	if err != nil {
+		retString += "运行错误\n"
+		retString += "----------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "----------------\n"
+		retString += err.Error() + "\n"
+		return retString, int(duration.Milliseconds()), nil
+	}
+	err = os.Remove("./a.exe")
+	if err != nil {
+		log.Println(err.Error())
+		return retString, int(duration.Milliseconds()), err
+	}
+	retString += fmt.Sprintf("%s\n", stdoutStderr)
+	return retString, int(duration.Milliseconds()), nil
 }
