@@ -212,7 +212,7 @@ func runCodeC(code string, input string) (string, int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "gcc", "./a.c", "-o", "./a.exe")
+	cmd := exec.CommandContext(ctx, "gcc", "./a.c", "-o", "./a")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		retString += "编译错误\n"
@@ -234,7 +234,7 @@ func runCodeC(code string, input string) (string, int, error) {
 		return "", 0, err
 	}
 
-	cmd = exec.CommandContext(ctx, "./a.exe")
+	cmd = exec.CommandContext(ctx, "./a")
 	cmd.Stdin = strings.NewReader(input)
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
@@ -247,7 +247,7 @@ func runCodeC(code string, input string) (string, int, error) {
 		retString += err.Error() + "\n"
 		return retString, int(duration.Milliseconds()), nil
 	}
-	err = os.Remove("./a.exe")
+	err = os.Remove("./a")
 	if err != nil {
 		log.Println(err.Error())
 		return retString, int(duration.Milliseconds()), err
@@ -273,7 +273,7 @@ func runCodeCpp(code string, input string) (string, int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "g++", "./a.cpp", "-o", "./a.exe")
+	cmd := exec.CommandContext(ctx, "g++", "./a.cpp", "-o", "./a")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		retString += "编译错误\n"
@@ -295,7 +295,7 @@ func runCodeCpp(code string, input string) (string, int, error) {
 		return "", 0, err
 	}
 
-	cmd = exec.CommandContext(ctx, "./a.exe")
+	cmd = exec.CommandContext(ctx, "./a")
 	cmd.Stdin = strings.NewReader(input)
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
@@ -308,7 +308,7 @@ func runCodeCpp(code string, input string) (string, int, error) {
 		retString += err.Error() + "\n"
 		return retString, int(duration.Milliseconds()), nil
 	}
-	err = os.Remove("./a.exe")
+	err = os.Remove("./a")
 	if err != nil {
 		log.Println(err.Error())
 		return retString, int(duration.Milliseconds()), err
