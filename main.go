@@ -54,9 +54,8 @@ type RequestRunData struct {
 
 func main() {
 	rand.Seed(time.Now().Unix())
-	DataBase = openDatabase()
 	MyDBConfig = initDBConfig()
-	log.Println(MyDBConfig.toString())
+	DataBase = openDatabase()
 	isPathExist, err := PathExists(RunCodeDir)
 	if err != nil {
 		log.Println(err.Error())
@@ -69,6 +68,7 @@ func main() {
 	}
 
 	router := gin.Default()
+	//router.StaticFS("/", http.Dir("dist"))
 	v1 := router.Group("v1")
 	{
 		v1.POST("create", create)
@@ -107,13 +107,15 @@ func PathExists(path string) (bool, error) {
 }
 
 func initDBConfig() DatabaseConfig {
-	return DatabaseConfig{
+	config := DatabaseConfig{
 		os.Getenv("DB_USERNAME"),
 		os.Getenv("DB_PASSWD"),
 		os.Getenv("DB_ADDR"),
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_DBNAME"),
 	}
+	log.Println(config.toString())
+	return config
 }
 
 func create(ctx *gin.Context) {
