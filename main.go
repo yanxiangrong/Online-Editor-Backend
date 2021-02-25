@@ -108,7 +108,7 @@ func PathExists(path string) (bool, error) {
 
 func initDBConfig() DatabaseConfig {
 	return DatabaseConfig{
-		os.Getenv("JAVA_HOME"),
+		os.Getenv("DB_USERNAME"),
 		os.Getenv("DB_PASSWD"),
 		os.Getenv("DB_ADDR"),
 		os.Getenv("DB_PORT"),
