@@ -16,8 +16,20 @@ import (
 	"time"
 )
 
-var database *sql.DB
-var isRunningCode = false
+var DataBase *sql.DB
+var IsRunningCode = false
+
+const RunCodeDir = ".run/"
+
+var MyDBConfig = initDBConfig()
+
+type DatabaseConfig struct {
+	Username string
+	Password string
+	Address  string
+	Port     string
+	DBName   string
+}
 
 type EditorData struct {
 	Workspace int    `json:"workspace" db:"id"`
@@ -37,7 +49,7 @@ type RequestRunData struct {
 
 func main() {
 	rand.Seed(time.Now().Unix())
-	database = openDatabase()
+	DataBase = openDatabase()
 
 	router := gin.Default()
 	//router.StaticFS("/", http.Dir("dist"))
@@ -64,14 +76,24 @@ func main() {
 	if err != nil {
 		log.Println(err.Error())
 	}
-	closeDatabase(database)
+	closeDatabase(DataBase)
+}
+
+func initDBConfig() DatabaseConfig {
+	return DatabaseConfig{
+		os.Getenv("DB_USERNAME"),
+		os.Getenv("DB_PASSWD"),
+		os.Getenv("DB_ADDR"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_DBNAME"),
+	}
 }
 
 func create(ctx *gin.Context) {
 	var workspace int
 	for true {
 		workspace = rand.Intn(900000) + 100000
-		_, err := database.Exec("insert userdata (id) values (?)", workspace)
+		_, err := DataBase.Exec("insert userdata (id) values (?)", workspace)
 		if err != nil && err.(*mysql.MySQLError).Number == 1062 {
 			continue
 		}
@@ -94,7 +116,7 @@ func editorData(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
 		return
 	}
-	row := database.QueryRow("select id, content, theme, `language` from userdata where id=?", request.Workspace)
+	row := DataBase.QueryRow("select id, content, theme, `language` from userdata where id=?", request.Workspace)
 	err = row.Scan(&data.Workspace, &data.Content, &data.Theme, &data.Language)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -120,7 +142,7 @@ func upload(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "内容过长"})
 		return
 	}
-	_, err = database.Exec("update userdata set content=?, theme=?, `language`=? where id=?", data.Content, data.Theme, data.Language, data.Workspace)
+	_, err = DataBase.Exec("update userdata set content=?, theme=?, `language`=? where id=?", data.Content, data.Theme, data.Language, data.Workspace)
 	if err != nil {
 		log.Println(err.Error())
 		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
@@ -138,7 +160,7 @@ func editorRun(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error()})
 		return
 	}
-	row := database.QueryRow("select id, content, theme, `language` from userdata where id=?", request.Workspace)
+	row := DataBase.QueryRow("select id, content, theme, `language` from userdata where id=?", request.Workspace)
 	err = row.Scan(&data.Workspace, &data.Content, &data.Theme, &data.Language)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -150,13 +172,13 @@ func editorRun(ctx *gin.Context) {
 		return
 	}
 
-	if isRunningCode {
+	if IsRunningCode {
 		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "当前已有代码在运行"})
 		return
 	} else {
-		isRunningCode = true
+		IsRunningCode = true
 	}
-	defer func() { isRunningCode = false }()
+	defer func() { IsRunningCode = false }()
 
 	switch data.Language {
 	case "c":
@@ -205,7 +227,7 @@ func editorRun(ctx *gin.Context) {
 }
 
 func openDatabase() *sql.DB {
-	var db, err = sql.Open("mysql", "root:passwd@tcp(127.0.0.1:3306)/mytest?charset=utf8")
+	var db, err = sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8", MyDBConfig.Username, MyDBConfig.Password, MyDBConfig.Address, MyDBConfig.Port, MyDBConfig.DBName))
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
@@ -221,7 +243,7 @@ func closeDatabase(database *sql.DB) {
 
 func runCodeC(code string, input string) (string, int, error) {
 	var retString string
-	file, err := os.Create("./a.c")
+	file, err := os.Create(RunCodeDir + "main.c")
 	if err != nil {
 		return "", 0, err
 	}
@@ -236,7 +258,7 @@ func runCodeC(code string, input string) (string, int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "gcc", "./a.c", "-o", "./a")
+	cmd := exec.CommandContext(ctx, "gcc", RunCodeDir+"main.c", "-o", RunCodeDir+"main")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		retString += "编译错误\n"
@@ -244,7 +266,7 @@ func runCodeC(code string, input string) (string, int, error) {
 		retString += fmt.Sprintf("%s\n", stdoutStderr)
 		retString += "--------------------\n"
 		retString += err.Error() + "\n"
-		err = os.Remove("./a.c")
+		err = os.Remove(RunCodeDir + "main.c")
 		if err != nil {
 			log.Println(err.Error())
 			return retString, 0, err
@@ -252,13 +274,13 @@ func runCodeC(code string, input string) (string, int, error) {
 		return retString, 0, nil
 	}
 
-	err = os.Remove("./a.c")
+	err = os.Remove(RunCodeDir + "main.c")
 	if err != nil {
 		log.Println(err.Error())
 		return "", 0, err
 	}
 
-	cmd = exec.CommandContext(ctx, "./a")
+	cmd = exec.CommandContext(ctx, RunCodeDir+"main")
 	cmd.Stdin = strings.NewReader(input)
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
@@ -271,7 +293,7 @@ func runCodeC(code string, input string) (string, int, error) {
 		retString += err.Error() + "\n"
 		return retString, int(duration.Milliseconds()), nil
 	}
-	err = os.Remove("./a")
+	err = os.Remove(RunCodeDir + "main")
 	if err != nil {
 		log.Println(err.Error())
 		return retString, int(duration.Milliseconds()), err
@@ -282,7 +304,7 @@ func runCodeC(code string, input string) (string, int, error) {
 
 func runCodeCpp(code string, input string) (string, int, error) {
 	var retString string
-	file, err := os.Create("./a.cpp")
+	file, err := os.Create(RunCodeDir + "main.cpp")
 	if err != nil {
 		return "", 0, err
 	}
@@ -297,7 +319,7 @@ func runCodeCpp(code string, input string) (string, int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "g++", "./a.cpp", "-o", "./a")
+	cmd := exec.CommandContext(ctx, "g++", RunCodeDir+"main.cpp", "-o", RunCodeDir+"main")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		retString += "编译错误\n"
@@ -305,7 +327,7 @@ func runCodeCpp(code string, input string) (string, int, error) {
 		retString += fmt.Sprintf("%s\n", stdoutStderr)
 		retString += "----------------\n"
 		retString += err.Error() + "\n"
-		err = os.Remove("./a.cpp")
+		err = os.Remove(RunCodeDir + "main.cpp")
 		if err != nil {
 			log.Println(err.Error())
 			return retString, 0, err
@@ -313,13 +335,13 @@ func runCodeCpp(code string, input string) (string, int, error) {
 		return retString, 0, nil
 	}
 
-	err = os.Remove("./a.cpp")
+	err = os.Remove(RunCodeDir + "main.cpp")
 	if err != nil {
 		log.Println(err.Error())
 		return "", 0, err
 	}
 
-	cmd = exec.CommandContext(ctx, "./a")
+	cmd = exec.CommandContext(ctx, RunCodeDir+"main")
 	cmd.Stdin = strings.NewReader(input)
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
@@ -332,7 +354,7 @@ func runCodeCpp(code string, input string) (string, int, error) {
 		retString += err.Error() + "\n"
 		return retString, int(duration.Milliseconds()), nil
 	}
-	err = os.Remove("./a")
+	err = os.Remove(RunCodeDir + "main")
 	if err != nil {
 		log.Println(err.Error())
 		return retString, int(duration.Milliseconds()), err
@@ -343,7 +365,7 @@ func runCodeCpp(code string, input string) (string, int, error) {
 
 func runCodePython(code string, input string) (string, int, error) {
 	var retString string
-	file, err := os.Create("./a.py")
+	file, err := os.Create(RunCodeDir + "main.py")
 	if err != nil {
 		return "", 0, err
 	}
@@ -359,7 +381,7 @@ func runCodePython(code string, input string) (string, int, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "python3", "./a.py")
+	cmd := exec.CommandContext(ctx, "python3", RunCodeDir+"main.py")
 	cmd.Stdin = strings.NewReader(input)
 	time1 := time.Now()
 	stdoutStderr, err := cmd.CombinedOutput()
@@ -372,7 +394,7 @@ func runCodePython(code string, input string) (string, int, error) {
 		retString += err.Error() + "\n"
 		return retString, int(duration.Milliseconds()), nil
 	}
-	err = os.Remove("./a.py")
+	err = os.Remove(RunCodeDir + "main.py")
 	if err != nil {
 		log.Println(err.Error())
 		return retString, int(duration.Milliseconds()), err
@@ -383,7 +405,7 @@ func runCodePython(code string, input string) (string, int, error) {
 
 func runCodeJava(code string, input string) (string, int, error) {
 	var retString string
-	file, err := os.Create("./a.java")
+	file, err := os.Create(RunCodeDir + "Main.java")
 	if err != nil {
 		return "", 0, err
 	}
@@ -398,7 +420,7 @@ func runCodeJava(code string, input string) (string, int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "javac", "./a.java")
+	cmd := exec.CommandContext(ctx, "javac", RunCodeDir+"Main.java")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		retString += "编译错误\n"
@@ -406,7 +428,7 @@ func runCodeJava(code string, input string) (string, int, error) {
 		retString += fmt.Sprintf("%s\n", stdoutStderr)
 		retString += "----------------\n"
 		retString += err.Error() + "\n"
-		err = os.Remove("./a.java")
+		err = os.Remove(RunCodeDir + "Main.java")
 		if err != nil {
 			log.Println(err.Error())
 			return retString, 0, err
@@ -414,13 +436,13 @@ func runCodeJava(code string, input string) (string, int, error) {
 		return retString, 0, nil
 	}
 
-	err = os.Remove("./a.java")
+	err = os.Remove(RunCodeDir + "Main.java")
 	if err != nil {
 		log.Println(err.Error())
 		return "", 0, err
 	}
 
-	cmd = exec.CommandContext(ctx, "java", "./a")
+	cmd = exec.CommandContext(ctx, "java", RunCodeDir+"Main")
 	cmd.Stdin = strings.NewReader(input)
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
@@ -433,7 +455,7 @@ func runCodeJava(code string, input string) (string, int, error) {
 		retString += err.Error() + "\n"
 		return retString, int(duration.Milliseconds()), nil
 	}
-	err = os.Remove("./a.class")
+	err = os.Remove(RunCodeDir + "Main.class")
 	if err != nil {
 		log.Println(err.Error())
 		return retString, int(duration.Milliseconds()), err
@@ -444,7 +466,7 @@ func runCodeJava(code string, input string) (string, int, error) {
 
 func runCodeGo(code string, input string) (string, int, error) {
 	var retString string
-	file, err := os.Create("./a.go")
+	file, err := os.Create(RunCodeDir + "main.go")
 	if err != nil {
 		return "", 0, err
 	}
@@ -459,7 +481,7 @@ func runCodeGo(code string, input string) (string, int, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "go", "build", "-o", "./a", "./a,go")
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", RunCodeDir+"main", RunCodeDir+"main.go")
 	stdoutStderr, err := cmd.CombinedOutput()
 	if err != nil {
 		retString += "编译错误\n"
@@ -467,7 +489,7 @@ func runCodeGo(code string, input string) (string, int, error) {
 		retString += fmt.Sprintf("%s\n", stdoutStderr)
 		retString += "----------------\n"
 		retString += err.Error() + "\n"
-		err = os.Remove("./a.go")
+		err = os.Remove(RunCodeDir + "main.go")
 		if err != nil {
 			log.Println(err.Error())
 			return retString, 0, err
@@ -475,13 +497,13 @@ func runCodeGo(code string, input string) (string, int, error) {
 		return retString, 0, nil
 	}
 
-	err = os.Remove("./a.go")
+	err = os.Remove(RunCodeDir + "main.go")
 	if err != nil {
 		log.Println(err.Error())
 		return "", 0, err
 	}
 
-	cmd = exec.CommandContext(ctx, "./a")
+	cmd = exec.CommandContext(ctx, RunCodeDir+"main")
 	cmd.Stdin = strings.NewReader(input)
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
@@ -494,7 +516,7 @@ func runCodeGo(code string, input string) (string, int, error) {
 		retString += err.Error() + "\n"
 		return retString, int(duration.Milliseconds()), nil
 	}
-	err = os.Remove("./a")
+	err = os.Remove(RunCodeDir + "main")
 	if err != nil {
 		log.Println(err.Error())
 		return retString, int(duration.Milliseconds()), err
