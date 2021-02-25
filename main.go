@@ -80,13 +80,15 @@ func main() {
 }
 
 func initDBConfig() DatabaseConfig {
-	return DatabaseConfig{
+	config := DatabaseConfig{
 		os.Getenv("DB_USERNAME"),
 		os.Getenv("DB_PASSWD"),
 		os.Getenv("DB_ADDR"),
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_DBNAME"),
 	}
+	log.Println(config)
+	return config
 }
 
 func create(ctx *gin.Context) {
