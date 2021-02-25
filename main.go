@@ -56,6 +56,7 @@ func main() {
 	rand.Seed(time.Now().Unix())
 	DataBase = openDatabase()
 	MyDBConfig = initDBConfig()
+	log.Println(MyDBConfig.toString())
 	isPathExist, err := PathExists(RunCodeDir)
 	if err != nil {
 		log.Println(err.Error())
@@ -106,15 +107,13 @@ func PathExists(path string) (bool, error) {
 }
 
 func initDBConfig() DatabaseConfig {
-	config := DatabaseConfig{
-		os.Getenv("DB_USERNAME"),
+	return DatabaseConfig{
+		os.Getenv("JAVA_HOME"),
 		os.Getenv("DB_PASSWD"),
 		os.Getenv("DB_ADDR"),
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_DBNAME"),
 	}
-	log.Println(config.toString())
-	return config
 }
 
 func create(ctx *gin.Context) {
