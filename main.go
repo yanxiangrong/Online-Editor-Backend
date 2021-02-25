@@ -31,6 +31,11 @@ type DatabaseConfig struct {
 	DBName   string
 }
 
+func (receiver DatabaseConfig) toString() string {
+	return fmt.Sprintf("{Username: %s, Password: %s, Address: %s, Port: %s, DBName: %s}",
+		receiver.Username, receiver.Password, receiver.Address, receiver.Port, receiver.DBName)
+}
+
 type EditorData struct {
 	Workspace int    `json:"workspace" db:"id"`
 	Content   string `json:"content" db:"content"`
@@ -87,7 +92,7 @@ func initDBConfig() DatabaseConfig {
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_DBNAME"),
 	}
-	log.Println(config)
+	log.Println(config.toString())
 	return config
 }
 
