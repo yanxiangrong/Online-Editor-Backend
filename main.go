@@ -19,9 +19,9 @@ import (
 var DataBase *sql.DB
 var IsRunningCode = false
 
-const RunCodeDir = ".run/"
+const RunCodeDir = "./run/"
 
-var MyDBConfig = initDBConfig()
+var MyDBConfig DatabaseConfig
 
 type DatabaseConfig struct {
 	Username string
@@ -55,6 +55,17 @@ type RequestRunData struct {
 func main() {
 	rand.Seed(time.Now().Unix())
 	DataBase = openDatabase()
+	MyDBConfig = initDBConfig()
+	isPathExist, err := PathExists(RunCodeDir)
+	if err != nil {
+		log.Println(err.Error())
+	}
+	if !isPathExist {
+		err = os.Mkdir(RunCodeDir, os.ModePerm)
+		if err != nil {
+			log.Println(err.Error())
+		}
+	}
 
 	router := gin.Default()
 	//router.StaticFS("/", http.Dir("dist"))
@@ -77,11 +88,22 @@ func main() {
 			context.Status(http.StatusOK)
 		})
 	}
-	err := router.Run(":9527")
+	err = router.Run(":9527")
 	if err != nil {
 		log.Println(err.Error())
 	}
 	closeDatabase(DataBase)
+}
+
+func PathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
 }
 
 func initDBConfig() DatabaseConfig {
