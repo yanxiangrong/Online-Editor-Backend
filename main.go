@@ -471,7 +471,7 @@ func runCodeJava(code string, input string) (string, int, error) {
 		return "", 0, err
 	}
 
-	cmd = exec.CommandContext(ctx, "java", RunCodeDir+"Main")
+	cmd = exec.CommandContext(ctx, "java", "-classpath", RunCodeDir, "Main")
 	cmd.Stdin = strings.NewReader(input)
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
