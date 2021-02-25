@@ -68,7 +68,6 @@ func main() {
 	}
 
 	router := gin.Default()
-	//router.StaticFS("/", http.Dir("dist"))
 	v1 := router.Group("v1")
 	{
 		v1.POST("create", create)
