@@ -11,4 +11,6 @@
 查看运行实列  
 `sudo docker ps -a`  
 进入实列  
-`sudo docker exec -it "ID" /bin/bash`
+`sudo docker exec -it "ID" /bin/bash`  
+安装JDK和Python3   
+`apt install python3 openjdk-11-jdk`

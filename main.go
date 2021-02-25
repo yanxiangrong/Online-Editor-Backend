@@ -175,6 +175,30 @@ func editorRun(ctx *gin.Context) {
 			return
 		}
 		ctx.JSON(http.StatusOK, gin.H{"result": 0, "output": result, "duration": duration})
+	case "python":
+		result, duration, err := runCodePython(data.Content, request.InputString)
+		if err != nil {
+			log.Println(err.Error())
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error(), "duration": duration})
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"result": 0, "output": result, "duration": duration})
+	case "java":
+		result, duration, err := runCodeJava(data.Content, request.InputString)
+		if err != nil {
+			log.Println(err.Error())
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error(), "duration": duration})
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"result": 0, "output": result, "duration": duration})
+	case "go":
+		result, duration, err := runCodeGo(data.Content, request.InputString)
+		if err != nil {
+			log.Println(err.Error())
+			ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": err.Error(), "duration": duration})
+			return
+		}
+		ctx.JSON(http.StatusOK, gin.H{"result": 0, "output": result, "duration": duration})
 	default:
 		ctx.JSON(http.StatusOK, gin.H{"result": -1, "content": "目前还不支持运行该语言"})
 	}
@@ -290,6 +314,168 @@ func runCodeCpp(code string, input string) (string, int, error) {
 	}
 
 	err = os.Remove("./a.cpp")
+	if err != nil {
+		log.Println(err.Error())
+		return "", 0, err
+	}
+
+	cmd = exec.CommandContext(ctx, "./a")
+	cmd.Stdin = strings.NewReader(input)
+	time1 := time.Now()
+	stdoutStderr, err = cmd.CombinedOutput()
+	duration := time.Since(time1)
+	if err != nil {
+		retString += "运行错误\n"
+		retString += "----------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "----------------\n"
+		retString += err.Error() + "\n"
+		return retString, int(duration.Milliseconds()), nil
+	}
+	err = os.Remove("./a")
+	if err != nil {
+		log.Println(err.Error())
+		return retString, int(duration.Milliseconds()), err
+	}
+	retString += fmt.Sprintf("%s\n", stdoutStderr)
+	return retString, int(duration.Milliseconds()), nil
+}
+
+func runCodePython(code string, input string) (string, int, error) {
+	var retString string
+	file, err := os.Create("./a.py")
+	if err != nil {
+		return "", 0, err
+	}
+	_, err = file.WriteString(code)
+	if err != nil {
+		return "", 0, err
+	}
+	err = file.Close()
+	if err != nil {
+		return "", 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "python3", "./a.py")
+	cmd.Stdin = strings.NewReader(input)
+	time1 := time.Now()
+	stdoutStderr, err := cmd.CombinedOutput()
+	duration := time.Since(time1)
+	if err != nil {
+		retString += "运行错误\n"
+		retString += "----------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "----------------\n"
+		retString += err.Error() + "\n"
+		return retString, int(duration.Milliseconds()), nil
+	}
+	err = os.Remove("./a.py")
+	if err != nil {
+		log.Println(err.Error())
+		return retString, int(duration.Milliseconds()), err
+	}
+	retString += fmt.Sprintf("%s\n", stdoutStderr)
+	return retString, int(duration.Milliseconds()), nil
+}
+
+func runCodeJava(code string, input string) (string, int, error) {
+	var retString string
+	file, err := os.Create("./a.java")
+	if err != nil {
+		return "", 0, err
+	}
+	_, err = file.WriteString(code)
+	if err != nil {
+		return "", 0, err
+	}
+	err = file.Close()
+	if err != nil {
+		return "", 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "javac", "./a.java")
+	stdoutStderr, err := cmd.CombinedOutput()
+	if err != nil {
+		retString += "编译错误\n"
+		retString += "----------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "----------------\n"
+		retString += err.Error() + "\n"
+		err = os.Remove("./a.java")
+		if err != nil {
+			log.Println(err.Error())
+			return retString, 0, err
+		}
+		return retString, 0, nil
+	}
+
+	err = os.Remove("./a.java")
+	if err != nil {
+		log.Println(err.Error())
+		return "", 0, err
+	}
+
+	cmd = exec.CommandContext(ctx, "java", "./a")
+	cmd.Stdin = strings.NewReader(input)
+	time1 := time.Now()
+	stdoutStderr, err = cmd.CombinedOutput()
+	duration := time.Since(time1)
+	if err != nil {
+		retString += "运行错误\n"
+		retString += "----------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "----------------\n"
+		retString += err.Error() + "\n"
+		return retString, int(duration.Milliseconds()), nil
+	}
+	err = os.Remove("./a.class")
+	if err != nil {
+		log.Println(err.Error())
+		return retString, int(duration.Milliseconds()), err
+	}
+	retString += fmt.Sprintf("%s\n", stdoutStderr)
+	return retString, int(duration.Milliseconds()), nil
+}
+
+func runCodeGo(code string, input string) (string, int, error) {
+	var retString string
+	file, err := os.Create("./a.go")
+	if err != nil {
+		return "", 0, err
+	}
+	_, err = file.WriteString(code)
+	if err != nil {
+		return "", 0, err
+	}
+	err = file.Close()
+	if err != nil {
+		return "", 0, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "go", "build", "-o", "./a", "./a,go")
+	stdoutStderr, err := cmd.CombinedOutput()
+	if err != nil {
+		retString += "编译错误\n"
+		retString += "----------------\n"
+		retString += fmt.Sprintf("%s\n", stdoutStderr)
+		retString += "----------------\n"
+		retString += err.Error() + "\n"
+		err = os.Remove("./a.go")
+		if err != nil {
+			log.Println(err.Error())
+			return retString, 0, err
+		}
+		return retString, 0, nil
+	}
+
+	err = os.Remove("./a.go")
 	if err != nil {
 		log.Println(err.Error())
 		return "", 0, err
