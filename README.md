@@ -3,7 +3,7 @@
 开启 Docker  
 `sudo systemctl start docker`  
 构建镜像  
-`sudo docker build -t online-editor-backend .`  
+`sudo docker build --restart=always -t online-editor-backend .`  
 查看镜像  
 `sudo docker images`  
 运行  

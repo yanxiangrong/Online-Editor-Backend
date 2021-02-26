@@ -18,6 +18,7 @@ import (
 
 var DataBase *sql.DB
 var IsRunningCode = false
+var watchDog WatchDog
 
 const RunCodeDir = "./run/"
 
@@ -31,9 +32,27 @@ type DatabaseConfig struct {
 	DBName   string
 }
 
-func (receiver DatabaseConfig) toString() string {
+func (receiver DatabaseConfig) ToString() string {
 	return fmt.Sprintf("{Username: %s, Password: %s, Address: %s, Port: %s, DBName: %s}",
 		receiver.Username, receiver.Password, receiver.Address, receiver.Port, receiver.DBName)
+}
+
+type WatchDog struct {
+	timer *time.Timer
+}
+
+func (receiver WatchDog) Init(d time.Duration) {
+	receiver.timer = time.NewTimer(d)
+	go func() {
+		<-receiver.timer.C
+		log.Fatalln("看门狗程序退出进程")
+	}()
+}
+
+func (receiver WatchDog) Stop() {
+	if !receiver.timer.Stop() {
+		<-receiver.timer.C
+	}
 }
 
 type EditorData struct {
@@ -114,7 +133,7 @@ func initDBConfig() DatabaseConfig {
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_DBNAME"),
 	}
-	log.Println(config.toString())
+	log.Println(config.ToString())
 	return config
 }
 
@@ -208,6 +227,8 @@ func editorRun(ctx *gin.Context) {
 		IsRunningCode = true
 	}
 	defer func() { IsRunningCode = false }()
+	watchDog.Init(time.Minute)
+	defer func() { watchDog.Stop() }()
 
 	switch data.Language {
 	case "c":
