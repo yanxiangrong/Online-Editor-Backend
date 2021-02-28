@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-sql-driver/mysql"
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/robfig/cron"
 	"log"
 	"math/rand"
 	"net/http"
@@ -24,15 +23,6 @@ var watchDog WatchDog
 const RunCodeDir = "./run/"
 
 var MyDBConfig DatabaseConfig
-
-var dayWorkData WorkData
-
-type WorkData struct {
-	Views   int `json:"views"`
-	Uploads int `json:"uploads"`
-	Runs    int `json:"runs"`
-	Creates int `json:"creates"`
-}
 
 type DatabaseConfig struct {
 	Username string
@@ -95,42 +85,25 @@ func main() {
 			log.Println(err.Error())
 		}
 	}
-	creatCleaner()
 
 	router := gin.Default()
 	//router.StaticFS("/", http.Dir("dist"))
 	v1 := router.Group("v1")
 	{
-		v1.POST("create", func(c *gin.Context) {
-			dayWorkData.Creates++
-			create(c)
-		})
+		v1.POST("create", create)
 		v1.GET("test", func(context *gin.Context) {
 			context.String(http.StatusOK, "Test")
 		})
-		v1.POST("workspace", func(c *gin.Context) {
-			dayWorkData.Views++
-			editorData(c)
-		})
+		v1.POST("workspace", editorData)
 		v1.OPTIONS("workspace", func(context *gin.Context) {
 			context.Status(http.StatusOK)
 		})
-		v1.POST("upload", func(c *gin.Context) {
-			dayWorkData.Uploads++
-			upload(c)
-		})
+		v1.POST("upload", upload)
 		v1.OPTIONS("upload", func(context *gin.Context) {
 			context.Status(http.StatusOK)
 		})
-		v1.POST("run", func(c *gin.Context) {
-			dayWorkData.Runs++
-			editorRun(c)
-		})
+		v1.POST("run", editorRun)
 		v1.OPTIONS("run", func(context *gin.Context) {
-			context.Status(http.StatusOK)
-		})
-		v1.GET("info", DayWorkData)
-		v1.OPTIONS("info", func(context *gin.Context) {
 			context.Status(http.StatusOK)
 		})
 	}
@@ -224,10 +197,6 @@ func upload(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, gin.H{"result": 0})
-}
-
-func DayWorkData(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, gin.H{"result": 0, "data": dayWorkData})
 }
 
 func editorRun(ctx *gin.Context) {
@@ -604,16 +573,4 @@ func runCodeGo(code string, input string) (string, int, error) {
 	}
 	retString += fmt.Sprintf("%s\n", stdoutStderr)
 	return retString, int(duration.Milliseconds()), nil
-}
-
-func creatCleaner() {
-	myCron := cron.New()
-	err := myCron.AddFunc("0 0 0 * * *", func() {
-		dayWorkData.Runs = 0
-		dayWorkData.Uploads = 0
-		dayWorkData.Views = 0
-	})
-	if err != nil {
-		log.Fatalln(err.Error())
-	}
 }
