@@ -9,6 +9,7 @@ RUN apt install python3 openjdk-11-jdk -y
 
 EXPOSE 9527
 #ENV GIN_MODE release
+ENV TZ Asia/Shanghai
 ENV DB_USERNAME OnlineEditor
 ENV DB_PASSWD password
 ENV DB_ADDR yandage.top

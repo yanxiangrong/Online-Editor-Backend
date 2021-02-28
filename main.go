@@ -52,7 +52,11 @@ type WatchDog struct {
 }
 
 func (receiver WatchDog) Init(d time.Duration) {
-	receiver.timer = time.NewTimer(d)
+	if receiver.timer == nil {
+		receiver.timer = time.NewTimer(d)
+	} else {
+		receiver.timer.Reset(d)
+	}
 	go func() {
 		<-receiver.timer.C
 		log.Fatalln("看门狗程序退出进程")
@@ -60,6 +64,7 @@ func (receiver WatchDog) Init(d time.Duration) {
 }
 
 func (receiver WatchDog) Stop() {
+	log.Println("Run in here")
 	if !receiver.timer.Stop() {
 		<-receiver.timer.C
 	}
@@ -257,9 +262,11 @@ func editorRun(ctx *gin.Context) {
 	} else {
 		IsRunningCode = true
 	}
-	defer func() { IsRunningCode = false }()
 	watchDog.Init(time.Minute)
-	defer func() { watchDog.Stop() }()
+	defer func() {
+		watchDog.Stop()
+		IsRunningCode = false
+	}()
 
 	switch data.Language {
 	case "c":
