@@ -42,7 +42,7 @@ type DatabaseConfig struct {
 	DBName   string
 }
 
-func (receiver DatabaseConfig) ToString() string {
+func (receiver *DatabaseConfig) ToString() string {
 	return fmt.Sprintf("{Username: %s, Password: %s, Address: %s, Port: %s, DBName: %s}",
 		receiver.Username, receiver.Password, receiver.Address, receiver.Port, receiver.DBName)
 }
@@ -51,7 +51,7 @@ type WatchDog struct {
 	timer *time.Timer
 }
 
-func (receiver WatchDog) Init(d time.Duration) {
+func (receiver *WatchDog) Init(d time.Duration) {
 	if receiver.timer == nil {
 		receiver.timer = time.NewTimer(d)
 	} else {
@@ -63,7 +63,7 @@ func (receiver WatchDog) Init(d time.Duration) {
 	}()
 }
 
-func (receiver WatchDog) Stop() {
+func (receiver *WatchDog) Stop() {
 	log.Println("Run in here")
 	if !receiver.timer.Stop() {
 		<-receiver.timer.C
