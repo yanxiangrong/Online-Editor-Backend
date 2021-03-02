@@ -13,7 +13,10 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"os/user"
+	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -26,6 +29,13 @@ const RunCodeDir = "./run/"
 var MyDBConfig DatabaseConfig
 
 var dayWorkData WorkData
+
+var runUser RunUser
+
+type RunUser struct {
+	Uid uint32
+	Gid uint32
+}
 
 type WorkData struct {
 	Views   int `json:"views"`
@@ -64,7 +74,6 @@ func (receiver *WatchDog) Init(d time.Duration) {
 }
 
 func (receiver *WatchDog) Stop() {
-	log.Println("Run in here")
 	if !receiver.timer.Stop() {
 		<-receiver.timer.C
 	}
@@ -100,7 +109,8 @@ func main() {
 			log.Println(err.Error())
 		}
 	}
-	creatCleaner()
+	setCounterTask()
+	runUser = GetRunUser()
 
 	router := gin.Default()
 	//router.StaticFS("/", http.Dir("dist"))
@@ -370,6 +380,8 @@ func runCodeC(code string, input string) (string, int, error) {
 
 	cmd = exec.CommandContext(ctx, RunCodeDir+"main")
 	cmd.Stdin = strings.NewReader(input)
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: runUser.Uid, Gid: runUser.Gid}
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
 	duration := time.Since(time1)
@@ -431,6 +443,8 @@ func runCodeCpp(code string, input string) (string, int, error) {
 
 	cmd = exec.CommandContext(ctx, RunCodeDir+"main")
 	cmd.Stdin = strings.NewReader(input)
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: runUser.Uid, Gid: runUser.Gid}
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
 	duration := time.Since(time1)
@@ -471,6 +485,8 @@ func runCodePython(code string, input string) (string, int, error) {
 
 	cmd := exec.CommandContext(ctx, "python3", RunCodeDir+"main.py")
 	cmd.Stdin = strings.NewReader(input)
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: runUser.Uid, Gid: runUser.Gid}
 	time1 := time.Now()
 	stdoutStderr, err := cmd.CombinedOutput()
 	duration := time.Since(time1)
@@ -532,6 +548,8 @@ func runCodeJava(code string, input string) (string, int, error) {
 
 	cmd = exec.CommandContext(ctx, "java", "-classpath", RunCodeDir, "Main")
 	cmd.Stdin = strings.NewReader(input)
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: runUser.Uid, Gid: runUser.Gid}
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
 	duration := time.Since(time1)
@@ -593,6 +611,8 @@ func runCodeGo(code string, input string) (string, int, error) {
 
 	cmd = exec.CommandContext(ctx, RunCodeDir+"main")
 	cmd.Stdin = strings.NewReader(input)
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{Uid: runUser.Uid, Gid: runUser.Gid}
 	time1 := time.Now()
 	stdoutStderr, err = cmd.CombinedOutput()
 	duration := time.Since(time1)
@@ -613,14 +633,33 @@ func runCodeGo(code string, input string) (string, int, error) {
 	return retString, int(duration.Milliseconds()), nil
 }
 
-func creatCleaner() {
+func setCounterTask() {
 	myCron := cron.New()
-	err := myCron.AddFunc("0 0 0 * * *", func() {
+	err := myCron.AddFunc("0 0 0 * * ?", func() {
 		dayWorkData.Runs = 0
 		dayWorkData.Uploads = 0
 		dayWorkData.Views = 0
+		log.Println("Counter zero")
 	})
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
+}
+
+func GetRunUser() RunUser {
+	username := "nobody"
+	user1, err := user.Lookup(username)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	log.Printf("Usernae: %s, Uid: %s, Gid:%s\n", username, user1.Uid, user1.Gid)
+	uid, err := strconv.ParseInt(user1.Uid, 10, 64)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	gid, err := strconv.ParseInt(user1.Gid, 10, 64)
+	if err != nil {
+		log.Fatalln(err.Error())
+	}
+	return RunUser{uint32(uid), uint32(gid)}
 }
