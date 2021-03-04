@@ -175,6 +175,13 @@ func initDBConfig() DatabaseConfig {
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_DBNAME"),
 	}
+	//config := DatabaseConfig{
+	//	"OnlineEditor",
+	//	"password",
+	//	"yandage.top",
+	//	"3306",
+	//	"onlineeditor",
+	//}
 	log.Println(config.ToString())
 	return config
 }
@@ -183,7 +190,8 @@ func create(ctx *gin.Context) {
 	var workspace int
 	for true {
 		workspace = rand.Intn(900000) + 100000
-		_, err := DataBase.Exec("insert userdata (id) values (?)", workspace)
+		_, err := DataBase.Exec("insert userdata (id, content, theme, `language`) values (?, ?, ?, ?)",
+			workspace, "", "vs", "plaintext")
 		if err != nil && err.(*mysql.MySQLError).Number == 1062 {
 			continue
 		}
