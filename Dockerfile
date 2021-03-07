@@ -3,7 +3,7 @@ FROM golang:latest
 WORKDIR $GOPATH/src/Online-Editor-Backend
 COPY . $GOPATH/src/Online-Editor-Backend
 RUN go env -w GOPROXY=https://goproxy.cn
-RUN go build .
+RUN go build . -o online-editor-backend
 RUN apt update
 RUN apt install python3 openjdk-11-jdk -y
 

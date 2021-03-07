@@ -113,6 +113,7 @@ func main() {
 	runUser = GetRunUser()
 
 	router := gin.Default()
+	router.Use(Cors())
 	//router.StaticFS("/", http.Dir("dist"))
 	v1 := router.Group("v1")
 	{
@@ -127,27 +128,15 @@ func main() {
 			dayWorkData.Views++
 			editorData(c)
 		})
-		v1.OPTIONS("workspace", func(context *gin.Context) {
-			context.Status(http.StatusOK)
-		})
 		v1.POST("upload", func(c *gin.Context) {
 			dayWorkData.Uploads++
 			upload(c)
-		})
-		v1.OPTIONS("upload", func(context *gin.Context) {
-			context.Status(http.StatusOK)
 		})
 		v1.POST("run", func(c *gin.Context) {
 			dayWorkData.Runs++
 			editorRun(c)
 		})
-		v1.OPTIONS("run", func(context *gin.Context) {
-			context.Status(http.StatusOK)
-		})
 		v1.GET("info", DayWorkData)
-		v1.OPTIONS("info", func(context *gin.Context) {
-			context.Status(http.StatusOK)
-		})
 	}
 	err = router.Run(":9527")
 	if err != nil {
@@ -168,20 +157,20 @@ func PathExists(path string) (bool, error) {
 }
 
 func initDBConfig() DatabaseConfig {
-	config := DatabaseConfig{
-		os.Getenv("DB_USERNAME"),
-		os.Getenv("DB_PASSWD"),
-		os.Getenv("DB_ADDR"),
-		os.Getenv("DB_PORT"),
-		os.Getenv("DB_DBNAME"),
-	}
 	//config := DatabaseConfig{
-	//	"OnlineEditor",
-	//	"password",
-	//	"yandage.top",
-	//	"3306",
-	//	"onlineeditor",
+	//	os.Getenv("DB_USERNAME"),
+	//	os.Getenv("DB_PASSWD"),
+	//	os.Getenv("DB_ADDR"),
+	//	os.Getenv("DB_PORT"),
+	//	os.Getenv("DB_DBNAME"),
 	//}
+	config := DatabaseConfig{
+		"OnlineEditor",
+		"password",
+		"yandage.top",
+		"3306",
+		"onlineeditor",
+	}
 	log.Println(config.ToString())
 	return config
 }
@@ -660,7 +649,7 @@ func GetRunUser() RunUser {
 	if err != nil {
 		log.Fatalln(err.Error())
 	}
-	log.Printf("Usernae: %s, Uid: %s, Gid:%s\n", username, user1.Uid, user1.Gid)
+	log.Printf("User: %s, Uid: %s, Gid:%s\n", username, user1.Uid, user1.Gid)
 	uid, err := strconv.ParseInt(user1.Uid, 10, 64)
 	if err != nil {
 		log.Fatalln(err.Error())
@@ -670,4 +659,39 @@ func GetRunUser() RunUser {
 		log.Fatalln(err.Error())
 	}
 	return RunUser{uint32(uid), uint32(gid)}
+}
+
+// this code is copy
+func Cors() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		method := c.Request.Method
+		origin := c.Request.Header.Get("Origin") //请求头部
+		if origin != "" {
+			//接收客户端发送的origin （重要！）
+			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			//服务器支持的所有跨域请求的方法
+			c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE,UPDATE")
+			//允许跨域设置可以返回其他子段，可以自定义字段
+			c.Header("Access-Control-Allow-Headers", "Authorization, Content-Length, X-CSRF-Token, Token,session")
+			// 允许浏览器（客户端）可以解析的头部 （重要）
+			c.Header("Access-Control-Expose-Headers", "Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers")
+			//设置缓存时间
+			c.Header("Access-Control-Max-Age", "172800")
+			//允许客户端传递校验信息比如 cookie (重要)
+			c.Header("Access-Control-Allow-Credentials", "true")
+		}
+
+		//允许类型校验
+		if method == "OPTIONS" {
+			c.Status(http.StatusOK)
+		}
+
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("Panic info is: %v", err)
+			}
+		}()
+
+		c.Next()
+	}
 }
