@@ -157,20 +157,20 @@ func PathExists(path string) (bool, error) {
 }
 
 func initDBConfig() DatabaseConfig {
-	//config := DatabaseConfig{
-	//	os.Getenv("DB_USERNAME"),
-	//	os.Getenv("DB_PASSWD"),
-	//	os.Getenv("DB_ADDR"),
-	//	os.Getenv("DB_PORT"),
-	//	os.Getenv("DB_DBNAME"),
-	//}
 	config := DatabaseConfig{
-		"OnlineEditor",
-		"password",
-		"yandage.top",
-		"3306",
-		"onlineeditor",
+		os.Getenv("DB_USERNAME"),
+		os.Getenv("DB_PASSWD"),
+		os.Getenv("DB_ADDR"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_DBNAME"),
 	}
+	//config := DatabaseConfig{
+	//	"OnlineEditor",
+	//	"password",
+	//	"yandage.top",
+	//	"3306",
+	//	"onlineeditor",
+	//}
 	log.Println(config.ToString())
 	return config
 }
